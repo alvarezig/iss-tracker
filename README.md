@@ -1,20 +1,20 @@
-# 🛰️ ISS Tracker
+# ISS Tracker
 
-Tracker en vivo de la Estación Espacial Internacional desde la terminal. Hecho en **Rust** para aprender el lenguaje con un proyecto real de ~100 líneas.
+Seguimiento en tiempo real de la Estación Espacial Internacional (ISS) desde la terminal, desarrollado en Rust.
 
 ![demo](./iss_tracker_demo.gif)
 
-> Consulta la posición real de la ISS cada 2 segundos y calcula a cuántos km está de vos (en mi caso Buenos Aires).
+Consulta la posición real de la ISS cada 2 segundos y calcula la distancia en línea recta desde la ubicación del observador (por defecto, Buenos Aires, Argentina).
 
 ---
 
-## ✨ Qué hace
+## Características
 
-- 📡 Polling cada 2s a la API pública `wheretheiss.at` (satélite `25544` = ISS)
-- 📍 Muestra en vivo: latitud, longitud, altitud, velocidad y visibilidad (`daylight` / `eclipsed`)
-- 📏 Calcula la distancia 3D con trigonometría esférica (Haversine + Teorema del Coseno) considerando la altitud orbital, no solo sobre el mapa plano
-- 🧹 Refresca la terminal con ANSI (`\x1B[2J`) para efecto "en vivo"
-- ⚡ Loop asíncrono con `tokio` sin bloquear el hilo
+- Consulta periódica (cada 2 segundos) a la API pública `wheretheiss.at` para el satélite `25544` (ISS).
+- Visualización en vivo de latitud, longitud, altitud, velocidad y visibilidad (`daylight` / `eclipsed`).
+- Cálculo de distancia tridimensional entre el observador y la ISS, considerando la altitud orbital.
+- Actualización de la terminal mediante secuencias de escape ANSI.
+- Bucle asíncrono no bloqueante implementado con `tokio`.
 
 Ejemplo de salida:
 
@@ -30,20 +30,20 @@ Visibilidad:  daylight
 Distancia:    3253.86 km
 ```
 
-## 🏗️ Arquitectura
+## Arquitectura
 
-Proyecto chico y explícito, 3 archivos:
+El proyecto se organiza en tres módulos con responsabilidades delimitadas:
 
 ```
 iss_tracker/
 ├── Cargo.toml
 └── src/
-    ├── main.rs    → loop principal, intervalo tokio, render en terminal
-    ├── client.rs  → cliente HTTP + struct IssPosition (serde)
-    └── geo.rs     → struct Observer + cálculo de distancia
+    ├── main.rs    # Bucle principal, intervalo de tokio y renderizado en terminal
+    ├── client.rs  # Cliente HTTP y definición de tipos de la API
+    └── geo.rs     # Coordenadas del observador y cálculo de distancia
 ```
 
-Flujo:
+Flujo de ejecución:
 
 ```
 ┌──────────┐   cada 2s   ┌──────────────────────────────┐
@@ -66,43 +66,48 @@ Flujo:
               └────────────────┘              └────────────────┘
 ```
 
-### Por qué así
+### Decisiones de diseño
 
-- **`client.rs` separado:** todo lo de red/serde aislado, `main.rs` no sabe de URLs ni JSON.
-- **`geo.rs` separado:** la matemática (Haversine + altitud) testeable sin red.
-- **`main.rs` fino:** solo orquesta: tick → fetch → calcular → pintar.
+- **`client.rs`:** aísla la capa de red y serialización. `main.rs` no depende de URLs ni del formato JSON.
+- **`geo.rs`:** concentra la lógica geométrica, lo que permite probarla de forma independiente sin acceso a la red.
+- **`main.rs`:** actúa únicamente como orquestador: espera el tick, obtiene la posición, calcula la distancia y presenta los resultados.
 
-## 📏 Cómo se calcula la distancia
+## Cálculo de distancia
 
-El Haversine clásico da distancia *sobre la superficie*. Como la ISS va a ~420 km de altura, eso subestima bastante.
+La fórmula clásica de Haversine calcula la distancia sobre la superficie terrestre. Dado que la ISS orbita a aproximadamente 420 km de altitud, ese cálculo subestima la distancia real.
 
-1. Calculo el ángulo central `θ` con Haversine entre (observador) y (punto sub-satélite).
-2. Aplico ley de cosenos en 3D con dos radios distintos:
+El procedimiento implementado es el siguiente:
+
+1. Cálculo del ángulo central `θ` mediante la fórmula de Haversine entre la posición del observador y el punto sub-satélite.
+2. Aplicación de la ley de cosenos en tres dimensiones con radios diferenciados:
 
 ```
-R1 = 6371.0 (tierra)
+R1 = 6371.0 (radio terrestre)
 R2 = 6371.0 + altitud_iss
 dist = sqrt(R1² + R2² - 2·R1·R2·cos(θ))
 ```
 
-Ver implementación en [`src/geo.rs`](src/geo.rs).
+Implementación de referencia en [`src/geo.rs`](src/geo.rs).
 
-## 🚀 Instalación y uso
+## Requisitos
 
-Requisitos: Rust 1.80+ (edition 2024) + conexión a internet.
+- Rust 1.80 o superior (edition 2024).
+- Conexión a internet para acceder a la API.
+
+## Instalación y uso
 
 ```bash
-# 1. Clonar
+# 1. Clonar el repositorio
 git clone https://github.com/alvarezig/iss-tracker.git
 cd iss-tracker
 
-# 2. Correr
+# 2. Ejecutar
 cargo run --release
 ```
 
-Salir con `Ctrl + C`.
+Para finalizar la ejecución, utilizar `Ctrl + C`.
 
-### Cambiar tu ubicación
+### Configuración de la ubicación del observador
 
 En [`src/main.rs`](src/main.rs#L12):
 
@@ -110,45 +115,45 @@ En [`src/main.rs`](src/main.rs#L12):
 // Lanús, Buenos Aires por defecto
 let me = Observer::new(-34.728, -58.428);
 
-// Ej: Madrid -> Observer::new(40.4168, -3.7038)
-// Ej: CDMX   -> Observer::new(19.4326, -99.1332)
+// Otros ejemplos:
+// Madrid: Observer::new(40.4168, -3.7038)
+// Ciudad de México: Observer::new(19.4326, -99.1332)
 ```
 
-Guardá y volvé a correr con `cargo run`.
+Luego de modificar las coordenadas, volver a ejecutar con `cargo run`.
 
-## 🧰 Stack
+## Stack tecnológico
 
-| Tech | Para qué |
-|------|----------|
-| [Rust](https://www.rust-lang.org/) | Lenguaje |
-| [tokio](https://tokio.rs/) `full` | Runtime async + `interval` cada 2s |
-| [reqwest](https://docs.rs/reqwest/) `json` | Cliente HTTP para pegarle a la API |
-| [serde](https://serde.rs/) `derive` | Deserialización directa del JSON a structs |
-| [wheretheiss.at](https://wheretheiss.at/) | API pública, sin key |
+| Tecnología | Uso |
+|------------|-----|
+| [Rust](https://www.rust-lang.org/) | Lenguaje de implementación |
+| [tokio](https://tokio.rs/) (`full`) | Runtime asíncrono e intervalo periódico |
+| [reqwest](https://docs.rs/reqwest/) (`json`) | Cliente HTTP |
+| [serde](https://serde.rs/) (`derive`) | Deserialización de respuestas JSON |
+| [wheretheiss.at](https://wheretheiss.at/) | API pública de posición de satélites (sin autenticación) |
 
-## 🎓 Qué aprendí (para portfolio)
+## Aspectos técnicos relevantes
 
-- Async real con `#[tokio::main]` + `interval.tick().await` sin bloquear.
-- Modelado con `struct` + `impl`, ownership básico sin `clone()` de más.
-- Deserialización directa `response.json::<IssPosition>().await`.
-- Secuencias ANSI para UI en terminal.
-- Que un error chico en la fórmula (ignorar altitud) te mueve el resultado cientos de km.
+- Uso de `#[tokio::main]` e `interval.tick().await` para polling asíncrono.
+- Modelado de dominio con `struct` e `impl`, con gestión explícita de ownership.
+- Deserialización directa mediante `response.json::<IssPosition>().await`.
+- Renderizado en terminal con secuencias de escape ANSI.
 
-## 🗺️ Roadmap
+## Roadmap
 
-- [ ] Alerta cuando la ISS pase a < 500 km ("¡salí a mirarla!")
-- [ ] Modo TUI con `ratatui` + mapita ASCII
-- [ ] Tests unitarios para `geo.rs` (casos borde: antípodas, cenit)
-- [ ] Flag `--lat --lon` por CLI en vez de hardcode
-- [ ] Soportar otros satélites (HST, Tiangong)
+- [ ] Notificación cuando la ISS se encuentre a menos de 500 km del observador.
+- [ ] Interfaz TUI con `ratatui` y representación ASCII de la posición.
+- [ ] Pruebas unitarias para `geo.rs` (casos límite: antípodas, cenit).
+- [ ] Parámetros `--lat` / `--lon` por línea de comandos en lugar de valores fijos.
+- [ ] Soporte para otros satélites (HST, Tiangong).
 
-## 📡 API
+## Referencia de la API
 
 ```
 GET https://api.wheretheiss.at/v1/satellites/25544
 ```
 
-Respuesta (recortada):
+Respuesta (extracto):
 
 ```json
 {
@@ -162,8 +167,8 @@ Respuesta (recortada):
 }
 ```
 
-Sin autenticación. Rate limit generoso, pero no bajar de 1s entre requests.
+La API no requiere autenticación. Se recomienda no reducir el intervalo entre solicitudes por debajo de 1 segundo.
 
 ---
 
-Hecho por Nacho para aprender Rust. Si te sirve para aprender, forkealo y rompelo.
+Desarrollado por Nacho Alvarez como proyecto de aprendizaje en Rust.
