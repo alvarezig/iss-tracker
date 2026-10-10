@@ -171,4 +171,4 @@ La API no requiere autenticación. Se recomienda no reducir el intervalo entre s
 
 ---
 
-Desarrollado por Nacho Alvarez como proyecto de aprendizaje en Rust.
+Desarrollado por Ignacio Alvarez.
